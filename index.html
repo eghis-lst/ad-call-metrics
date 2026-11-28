@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>광고 호출 현황</title>
+<style>
+:root{
+  --bg:#ffffff;--fg:#1b1f24;--muted:#5b6470;--card:#f5f6f8;--line:#e3e6ea;
+  --grid:#eceef1;--axis:#c8cdd3;--series:#2a78d6;--btn:#eef1f4;--btn-on:#1b1f24;--btn-on-fg:#ffffff;
+  --warn-bg:#fff1c2;--warn-fg:#5c4400;--warn-line:#e8c95a;--tip-bg:#1b1f24;--tip-fg:#ffffff;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#121519;--fg:#e7e9ec;--muted:#9aa3ad;--card:#1b1f24;--line:#2a3037;
+    --grid:#242930;--axis:#3a414a;--series:#3987e5;--btn:#22272e;--btn-on:#e7e9ec;--btn-on-fg:#121519;
+    --warn-bg:#3a2e00;--warn-fg:#ffe08a;--warn-line:#6b5600;--tip-bg:#e7e9ec;--tip-fg:#121519;
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;-webkit-text-size-adjust:100%}
+main{max-width:960px;margin:0 auto;padding:16px 16px 40px}
+h1{font-size:20px;margin:4px 0 2px}
+h2{font-size:17px;margin:0}
+.updated{margin:6px 0 12px}
+.updated .label{color:var(--muted);font-size:13px}
+.updated .value{display:block;font-size:30px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.updated .sched{display:block;color:var(--muted);font-size:13px;min-height:1.5em}
+.banner{display:none;background:var(--warn-bg);color:var(--warn-fg);border:1px solid var(--warn-line);border-radius:8px;padding:10px 12px;font-weight:600;margin:0 0 14px}
+.banner.on{display:block}
+.err{display:none;color:var(--muted);font-size:13px;margin:0 0 10px}
+.err.on{display:block}
+section{border-top:1px solid var(--line);padding-top:16px;margin-top:16px}
+.sec-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 12px;margin-bottom:10px}
+.sub{color:var(--muted);font-size:13px}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px}
+@media (max-width:640px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{background:var(--card);border-radius:10px;padding:10px 12px;min-width:0}
+.kpi .k{color:var(--muted);font-size:13px}
+.kpi .v{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px}
+.seg{display:inline-flex;flex-wrap:wrap;gap:2px;background:var(--btn);border-radius:8px;padding:2px}
+.seg button{border:0;background:transparent;color:var(--fg);font:inherit;font-size:13px;padding:5px 10px;border-radius:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--btn-on);color:var(--btn-on-fg)}
+.linkbtn{border:0;background:none;color:var(--muted);font:inherit;font-size:13px;text-decoration:underline;cursor:pointer;padding:4px 0}
+.chart{position:relative;width:100%;min-height:60px}
+.chart svg{display:block;width:100%;overflow:visible;touch-action:pan-y}
+.chart text{fill:var(--fg);font-size:11px;font-variant-numeric:tabular-nums}
+.chart .muted{fill:var(--muted)}
+.empty{color:var(--muted);background:var(--card);border-radius:10px;padding:28px 12px;text-align:center}
+.tip{position:absolute;pointer-events:none;background:var(--tip-bg);color:var(--tip-fg);font-size:12px;line-height:1.4;padding:6px 8px;border-radius:6px;white-space:nowrap;display:none;z-index:2}
+.tip b{font-weight:700}
+.note{color:var(--muted);font-size:13px;margin:6px 0 0}
+.tablewrap{display:none;margin-top:8px;max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.tablewrap.on{display:block}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:5px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{position:sticky;top:0;background:var(--card);font-weight:600}
+tr.partial td{color:var(--muted)}
+footer{border-top:1px solid var(--line);margin-top:20px;padding-top:12px;color:var(--muted);font-size:12.5px}
+footer p{margin:0 0 6px}
+</style>
+</head>
+<body>
+<main>
+  <h1>광고 호출 현황</h1>
+  <div class="updated"><span class="label">마지막 갱신 (KST)</span><span class="value" id="updated">—</span><span class="sched" id="sched"></span></div>
+  <div class="banner" id="stale" role="alert"></div>
+  <div class="err" id="loaderr"></div>
+
+  <section id="today">
+    <div class="sec-head"><h2 id="today-title">오늘</h2><span class="sub">전 기기 합산</span></div>
+    <div class="kpis">
+      <div class="kpi"><div class="k">요청 수</div><div class="v" id="k-calls">—</div></div>
+      <div class="kpi"><div class="k">광고 응답 수</div><div class="v" id="k-ad">—</div></div>
+      <div class="kpi"><div class="k">응답률</div><div class="v" id="k-rate">—</div></div>
+      <div class="kpi"><div class="k">호출 기기 수</div><div class="v" id="k-devices">—</div></div>
+    </div>
+    <div class="controls"><div class="seg" id="today-metric" role="group" aria-label="지표"></div></div>
+    <div class="chart" id="today-chart"></div>
+    <p class="note">시간대별 값입니다. 기기는 끝난 시간대만 올리므로 진행 중인 시간대는 없고, 직전 시간대는 부분값(옅게 표시)입니다.</p>
+    <button class="linkbtn" id="today-tbtn" type="button">표로 보기</button>
+    <div class="tablewrap" id="today-table"></div>
+  </section>
+
+  <section id="history">
+    <div class="sec-head"><h2>과거</h2><span class="sub" id="hist-sub"></span></div>
+    <div class="controls">
+      <div class="seg" id="hist-period" role="group" aria-label="기간"></div>
+      <div class="seg" id="hist-metric" role="group" aria-label="지표"></div>
+    </div>
+    <div class="chart" id="hist-chart"></div>
+    <p class="note">옅은 막대는 아직 끝나지 않은 기간(진행 중, 어제까지) 또는 데이터가 중간에 시작된 기간(부분)입니다.</p>
+    <button class="linkbtn" id="hist-tbtn" type="button">표로 보기</button>
+    <div class="tablewrap" id="hist-table"></div>
+  </section>
+
+  <footer>
+    <p>요청 수 = 응답 또는 실패로 끝난 VAST 호출 수 — 네트워크 미도달 포함, 앱이 중간에 취소한 호출 제외.</p>
+    <p>응답률 = 광고 응답 수 ÷ 요청 수. 호출 기기 수 = 해당 기간에 요청이 1건 이상 있었던 기기 수(기간마다 따로 셈).</p>
+    <p>Android 기기(텔레메트리 업로드 기기) 기준.</p>
+    <p>과거 값은 늦게 올라온 데이터로 바뀔 수 있습니다.</p>
+  </footer>
+</main>
+<script>
+(function(){
+'use strict';
+var REFRESH_MS = 60*1000;
+
+// <schedule-core> 갱신 예정과 정지 판정 — 순수 함수(DOM·시계·브라우저 시간대 의존 없음). 단독 시험은 이 표시 사이를 잘라 돌린다.
+// 예정: 매일 KST 09:30 ~ 21:30 매시 30분(13회). 한국은 일광절약시간이 없어 UTC+9 고정 산술로 계산한다.
+// 기준 예정 = "예정 + 여유(15분) < 지금" 인 가장 늦은 예정(지금 <= 예정+15분이면 그 전 예정이 기준).
+// 기준 예정보다 generatedAt 이 허용(5분) 넘게 이르면 정지. generatedAt 을 읽을 수 없으면 정지.
+var SCHED_HOURS = [9,10,11,12,13,14,15,16,17,18,19,20,21], SCHED_MIN = 30;
+var SCHED_GRACE_MS = 15*60*1000, SCHED_TOL_MS = 5*60*1000, KST_OFF_MS = 9*3600*1000, DAY_MS = 864e5;
+function slotMs(kstDay,h){return kstDay*DAY_MS+h*3600e3+SCHED_MIN*60e3-KST_OFF_MS;}
+function lastSlotBefore(x){ // x 보다 엄격히 이른 마지막 예정
+  var d=Math.floor((x+KST_OFF_MS)/DAY_MS);
+  for(var k=0;k<3;k++,d--){for(var i=SCHED_HOURS.length-1;i>=0;i--){var s=slotMs(d,SCHED_HOURS[i]);if(s<x)return s;}}
+  return null;
+}
+function firstSlotAfter(x){ // x 보다 엄격히 늦은 첫 예정
+  var d=Math.floor((x+KST_OFF_MS)/DAY_MS);
+  for(var k=0;k<3;k++,d++){for(var i=0;i<SCHED_HOURS.length;i++){var s=slotMs(d,SCHED_HOURS[i]);if(s>x)return s;}}
+  return null;
+}
+function staleState(nowMs,genMs){
+  var today=Math.floor((nowMs+KST_OFF_MS)/DAY_MS);
+  var ref=lastSlotBefore(nowMs-SCHED_GRACE_MS);
+  var cur=lastSlotBefore(nowMs+1); // 지금 이하의 마지막 예정
+  var firstOfDay=slotMs(today,SCHED_HOURS[0]), lastOfDay=slotMs(today,SCHED_HOURS[SCHED_HOURS.length-1]);
+  var offHours=nowMs<firstOfDay||nowMs>lastOfDay+SCHED_GRACE_MS;
+  var bad=!(typeof genMs==='number'&&isFinite(genMs));
+  var stale=bad||genMs<ref-SCHED_TOL_MS;
+  // 다음 갱신: 방금 지난 예정의 여유 안이고 그 갱신이 아직 안 왔으면 그 예정, 아니면 지금 뒤 첫 예정
+  var pending=!bad&&nowMs<=cur+SCHED_GRACE_MS&&genMs<cur-SCHED_TOL_MS;
+  var next=pending?cur:firstSlotAfter(nowMs);
+  return {stale:stale,offHours:offHours,next:next,ref:ref};
+}
+function kstHHMM(ms){var m=Math.floor((((ms+KST_OFF_MS)%DAY_MS)+DAY_MS)%DAY_MS/60000);return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');}
+// </schedule-core>
+var METRICS = [
+  {key:'calls', label:'요청 수'},
+  {key:'ad', label:'광고 응답 수'},
+  {key:'rate', label:'응답률'},
+  {key:'devices', label:'기기 수'}
+];
+var PERIODS = [{key:'daily',label:'일'},{key:'weekly',label:'주'},{key:'monthly',label:'월'}];
+var state = {today:null, hist:null, todayMetric:'calls', histMetric:'calls', period:'daily'};
+var $ = function(id){return document.getElementById(id);};
+
+// ── 형식 ──
+var nf = new Intl.NumberFormat('ko-KR');
+function fmtNum(v){return v==null?'—':nf.format(v);}
+function fmtRate(v){return v==null?'—':(v*100).toFixed(1)+'%';}
+function fmt(key,v){return key==='rate'?fmtRate(v):fmtNum(v);}
+function fmtAxis(key,v){
+  if(key==='rate') return (v*100).toFixed(v*100<10&&v!==0&&v*100%1!==0?1:0)+'%';
+  var a=Math.abs(v);
+  if(a>=1e8) return trim(v/1e8)+'억';
+  if(a>=1e4) return trim(v/1e4)+'만';
+  return nf.format(v);
+}
+function trim(x){return (Math.round(x*10)/10).toString();}
+var kstFmt = new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+function kstParts(d){var o={};kstFmt.formatToParts(d).forEach(function(p){o[p.type]=p.value;});return o;}
+function kstFull(d){var p=kstParts(d);return p.year+'-'+p.month+'-'+p.day+' '+p.hour+':'+p.minute;}
+function kstHM(d){var p=kstParts(d);return p.hour+':'+p.minute;}
+function md(s){return (+s.slice(4,6))+'/'+(+s.slice(6,8));}
+function mdK(s){return (+s.slice(4,6))+'월 '+(+s.slice(6,8))+'일';}
+function addDays(s,n){var d=new Date(Date.UTC(+s.slice(0,4),+s.slice(4,6)-1,+s.slice(6,8))+n*864e5);return ''+d.getUTCFullYear()+String(d.getUTCMonth()+1).padStart(2,'0')+String(d.getUTCDate()).padStart(2,'0');}
+function monthEnd(m){var d=new Date(Date.UTC(+m.slice(0,4),+m.slice(4,6),0));return m+String(d.getUTCDate()).padStart(2,'0');}
+
+// ── 버튼 묶음 ──
+function seg(el,items,cur,on){
+  el.innerHTML='';
+  items.forEach(function(it){
+    var b=document.createElement('button');b.type='button';b.textContent=it.label;
+    b.setAttribute('aria-pressed',String(it.key===cur));
+    b.addEventListener('click',function(){on(it.key);});
+    el.appendChild(b);
+  });
+}
+function toggleTable(btn,wrap){
+  btn.addEventListener('click',function(){
+    var on=wrap.classList.toggle('on');btn.textContent=on?'표 닫기':'표로 보기';
+  });
+}
+
+// ── 차트 (SVG 직접 그림, 단일 시리즈) ──
+var NS='http://www.w3.org/2000/svg';
+function el(tag,attrs,parent){var e=document.createElementNS(NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e;}
+function niceMax(v,isRate){
+  if(!(v>0)) return isRate?0.1:10;
+  var e=Math.pow(10,Math.floor(Math.log10(v))),f=v/e;
+  var n=f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10;return n*e;
+}
+function barPath(x,y,w,h,r){
+  if(h<=0) return '';
+  r=Math.min(r,w/2,h);
+  return 'M'+x+','+(y+h)+'V'+(y+r)+'Q'+x+','+y+' '+(x+r)+','+y+'H'+(x+w-r)+'Q'+(x+w)+','+y+' '+(x+w)+','+(y+r)+'V'+(y+h)+'Z';
+}
+/* pts: [{label, tip, value, faded, note}] — value null 이면 빈 칸 */
+function drawChart(box,pts,key,type){
+  box.innerHTML='';
+  var W=Math.max(box.clientWidth,260),H=220,ml=44,mr=8,mt=12,mb=26;
+  var iw=W-ml-mr,ih=H-mt-mb;
+  var svg=el('svg',{viewBox:'0 0 '+W+' '+H,height:H,role:'img','aria-label':'차트'},box);
+  var tip=document.createElement('div');tip.className='tip';box.appendChild(tip);
+  var vmax=0;pts.forEach(function(p){if(p.value!=null&&p.value>vmax)vmax=p.value;});
+  var top=niceMax(vmax,key==='rate');
+  var y=function(v){return mt+ih-(v/top)*ih;};
+  for(var i=0;i<=4;i++){
+    var tv=top*i/4,ty=y(tv);
+    el('line',{x1:ml,x2:W-mr,y1:ty,y2:ty,stroke:i===0?'var(--axis)':'var(--grid)','stroke-width':1},svg);
+    var t=el('text',{x:ml-6,y:ty+3.5,'text-anchor':'end','class':'muted'},svg);t.textContent=fmtAxis(key,tv);
+  }
+  var n=pts.length,step=iw/Math.max(n,1);
+  var cx=function(i){return ml+step*i+step/2;};
+  var every=Math.max(1,Math.ceil(46/step));
+  pts.forEach(function(p,i){
+    if(i%every!==0) return;
+    var t=el('text',{x:cx(i),y:H-8,'text-anchor':'middle','class':'muted'},svg);t.textContent=p.label;
+  });
+  var lastIdx=-1;pts.forEach(function(p,i){if(p.value!=null)lastIdx=i;});
+  if(type==='bar'){
+    var bw=Math.max(1,Math.min(22,step-2));
+    pts.forEach(function(p,i){
+      if(p.value==null) return;
+      var by=y(p.value),bh=mt+ih-by;
+      if(bh>0) el('path',{d:barPath(cx(i)-bw/2,by,bw,bh,4),fill:'var(--series)','fill-opacity':p.faded?0.4:1},svg);
+    });
+  } else {
+    var d='',seg=false;
+    pts.forEach(function(p,i){
+      if(p.value==null){seg=false;return;}
+      d+=(seg?'L':'M')+cx(i).toFixed(1)+','+y(p.value).toFixed(1);seg=true;
+    });
+    el('path',{d:d,fill:'none',stroke:'var(--series)','stroke-width':2,'stroke-linejoin':'round','stroke-linecap':'round'},svg);
+  }
+  if(lastIdx>=0){ // 값 라벨은 가장 최근 점 하나만
+    var lp=pts[lastIdx],lt=el('text',{x:Math.min(cx(lastIdx),W-mr),y:y(lp.value)-6,'text-anchor':cx(lastIdx)>W-60?'end':'middle'},svg);
+    lt.textContent=fmt(key,lp.value);
+  }
+  var cross=el('line',{y1:mt,y2:mt+ih,stroke:'var(--axis)','stroke-width':1,visibility:'hidden'},svg);
+  var dot=el('circle',{r:4,fill:'var(--series)',stroke:'var(--bg)','stroke-width':2,visibility:'hidden'},svg);
+  var hl=el('rect',{y:mt,height:ih,fill:'var(--fg)','fill-opacity':0.06,visibility:'hidden'},svg);
+  var hit=el('rect',{x:ml,y:0,width:iw,height:H,fill:'transparent'},svg);
+  function show(ev){
+    var r=svg.getBoundingClientRect(),sx=(ev.clientX-r.left)*(W/r.width);
+    var i=Math.floor((sx-ml)/step);if(i<0)i=0;if(i>n-1)i=n-1;
+    var p=pts[i];if(!p){hide();return;}
+    if(type==='bar'){
+      hl.setAttribute('x',ml+step*i);hl.setAttribute('width',step);hl.setAttribute('visibility','visible');
+    } else {
+      cross.setAttribute('x1',cx(i));cross.setAttribute('x2',cx(i));cross.setAttribute('visibility','visible');
+      if(p.value!=null){dot.setAttribute('cx',cx(i));dot.setAttribute('cy',y(p.value));dot.setAttribute('visibility','visible');}
+      else dot.setAttribute('visibility','hidden');
+    }
+    tip.innerHTML='';
+    var a=document.createElement('div');a.textContent=p.tip+(p.note?' · '+p.note:'');tip.appendChild(a);
+    var b=document.createElement('b');b.textContent=fmt(key,p.value);tip.appendChild(b);
+    tip.style.display='block';
+    var px=cx(i)*(r.width/W),tw=tip.offsetWidth,bw2=box.clientWidth;
+    tip.style.left=Math.max(0,Math.min(bw2-tw,px-tw/2))+'px';
+    var py=(p.value!=null?y(p.value):mt+ih)*(r.height/H);
+    tip.style.top=Math.max(0,py-tip.offsetHeight-10)+'px';
+  }
+  function hide(){tip.style.display='none';cross.setAttribute('visibility','hidden');dot.setAttribute('visibility','hidden');hl.setAttribute('visibility','hidden');}
+  hit.addEventListener('pointermove',show);hit.addEventListener('pointerdown',show);
+  hit.addEventListener('pointerleave',hide);
+}
+function table(wrap,head,rows){
+  var h='<table><thead><tr>'+head.map(function(x){return '<th>'+x+'</th>';}).join('')+'</tr></thead><tbody>';
+  rows.forEach(function(r){h+='<tr'+(r.faded?' class="partial"':'')+'>'+r.cells.map(function(c){return '<td>'+esc(c)+'</td>';}).join('')+'</tr>';});
+  wrap.innerHTML=h+'</tbody></table>';
+}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function rowCells(first,x){return [first,fmtNum(x.calls),fmtNum(x.ad),fmtRate(x.rate),fmtNum(x.devices)];}
+var HEAD=['요청 수','광고 응답 수','응답률','기기 수'];
+
+// ── 오늘 ──
+function renderToday(){
+  var t=state.today;if(!t)return;
+  $('today-title').textContent='오늘 ('+mdK(t.date)+')';
+  $('k-calls').textContent=fmtNum(t.total.calls);
+  $('k-ad').textContent=fmtNum(t.total.ad);
+  $('k-rate').textContent=fmtRate(t.total.rate);
+  $('k-devices').textContent=fmtNum(t.total.devices);
+  seg($('today-metric'),METRICS,state.todayMetric,function(k){state.todayMetric=k;renderToday();});
+  var box=$('today-chart');
+  if(!t.hours.length){
+    box.innerHTML='<div class="empty">아직 닫힌 시간대 없음(기기는 끝난 시간대만 올립니다)</div>';
+    $('today-table').innerHTML='';return;
+  }
+  var by={},maxH=-1;t.hours.forEach(function(x){by[x.h]=x;if(x.h>maxH)maxH=x.h;});
+  var pts=[];
+  for(var h=0;h<24;h++){
+    var x=by[h];
+    pts.push({label:String(h),tip:h+':00–'+(h+1)+':00',value:x?x[state.todayMetric]:null,faded:h===maxH,note:h===maxH?'부분값':''});
+  }
+  drawChart(box,pts,state.todayMetric,'bar');
+  table($('today-table'),['시간대'].concat(HEAD),t.hours.map(function(x){
+    return {faded:x.h===maxH,cells:rowCells(x.h+':00'+(x.h===maxH?' (부분)':''),x)};
+  }));
+}
+
+// ── 과거 ──
+function histPoints(){
+  var H=state.hist,basis=H.basisDate,k=state.histMetric,out=[];
+  if(state.period==='daily'){
+    H.daily.forEach(function(x){out.push({label:md(x.d),tip:x.d.slice(0,4)+'-'+x.d.slice(4,6)+'-'+x.d.slice(6),value:x[k],faded:false,note:'',row:x,first:x.d.slice(0,4)+'-'+x.d.slice(4,6)+'-'+x.d.slice(6)});});
+  } else if(state.period==='weekly'){
+    H.weekly.forEach(function(x){
+      var prog=x.end>=basis,note=x.partial?(prog?'진행 중':'부분'):'';
+      var r=md(x.start)+'~'+md(x.end);
+      out.push({label:md(x.start),tip:r,value:x[k],faded:x.partial,note:note,row:x,first:r+(note?' ('+note+')':'')});
+    });
+  } else {
+    H.monthly.forEach(function(x){
+      var prog=monthEnd(x.m)>=basis,note=x.partial?(prog?'진행 중':'부분'):'';
+      var lbl=(+x.m.slice(4,6))+'월',full=x.m.slice(0,4)+'년 '+lbl;
+      out.push({label:lbl,tip:full,value:x[k],faded:x.partial,note:note,row:x,first:full+(note?' ('+note+')':'')});
+    });
+  }
+  return out;
+}
+function renderHist(){
+  var H=state.hist;if(!H)return;
+  seg($('hist-period'),PERIODS,state.period,function(k){state.period=k;renderHist();});
+  seg($('hist-metric'),METRICS,state.histMetric,function(k){state.histMetric=k;renderHist();});
+  var y=addDays(H.basisDate,-1);
+  $('hist-sub').textContent=H.daily.length?(mdK(H.daily[0].d)+' ~ '+mdK(y)+' · 매일 오전 재계산'):'';
+  var pts=histPoints(),box=$('hist-chart');
+  if(!pts.length){box.innerHTML='<div class="empty">과거 데이터 없음</div>';$('hist-table').innerHTML='';return;}
+  drawChart(box,pts,state.histMetric,state.period==='daily'?'line':'bar');
+  table($('hist-table'),[state.period==='daily'?'날짜':state.period==='weekly'?'주(월~일)':'월'].concat(HEAD),
+    pts.slice().reverse().map(function(p){return {faded:p.faded,cells:rowCells(p.first,p.row)};}));
+}
+
+// ── 갱신 표시 ──
+function renderStatus(){
+  var t=state.today;if(!t)return;
+  var g=new Date(t.generatedAt);
+  var gm=g.getTime(),ok=!isNaN(gm);
+  $('updated').textContent=ok?kstFull(g):'—';
+  var s=staleState(Date.now(),gm);
+  $('sched').textContent=(s.offHours?'운영시간 외 — 다음 갱신 ':'다음 갱신 ')+kstHHMM(s.next);
+  var b=$('stale');
+  if(s.stale){b.textContent='갱신 멈춤 — 마지막 갱신 '+(ok?kstHM(g):'—');b.classList.add('on');}
+  else b.classList.remove('on');
+}
+
+function getJson(path){
+  return fetch(path+'?t='+Date.now(),{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error(r.status);return r.json();});
+}
+function load(){
+  Promise.all([getJson('data/today.json'),getJson('data/history.json').catch(function(){return null;})])
+  .then(function(res){
+    state.today=res[0];if(res[1])state.hist=res[1];
+    $('loaderr').classList.remove('on');
+    renderStatus();renderToday();renderHist();
+  }).catch(function(){
+    var e=$('loaderr');e.textContent='데이터를 불러오지 못했습니다. 1분 뒤 다시 시도합니다.';e.classList.add('on');
+    renderStatus();
+  });
+}
+toggleTable($('today-tbtn'),$('today-table'));
+toggleTable($('hist-tbtn'),$('hist-table'));
+var rt;window.addEventListener('resize',function(){clearTimeout(rt);rt=setTimeout(function(){renderToday();renderHist();},150);});
+load();setInterval(load,REFRESH_MS);
+})();
+</script>
+</body>
+</html>
